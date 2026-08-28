@@ -27,9 +27,9 @@ Build an Objective-C/UIKit TrollStore package for iOS 15–16 that shows a syste
    - Find and clone only relevant TrollStore, battery-monitor, background, and SpringBoard-overlay references.
    - Record source, reuse candidate, integration plan, and adaptation level in `refrence/refrence.md`.
    - Prove whether TrollStore-only system-wide presentation is feasible on iOS 15–16 before full implementation.
-3. **Minimal implementation** — in progress
+3. **Minimal implementation** — complete
    - Reuse the selected native approach for battery observation, configuration, background operation, and overlay presentation.
-4. **Tests and package build** — pending
+4. **Tests and package build** — in progress
    - Run unit/logic tests, static checks, build, sign/package as `.tipa`, and inspect entitlements/bundle contents.
 5. **Device handoff** — pending
    - Provide install and low-battery validation steps, known version limitations, and recovery instructions.
@@ -43,3 +43,6 @@ Build an Objective-C/UIKit TrollStore package for iOS 15–16 that shows a syste
 | DESIGN.md used an unsupported `tokens` wrapper | 1 | Read the official CLI specification and moved values under supported top-level token groups. |
 | DESIGN.md component sub-token names were invalid | 1 | Replaced them with names accepted by design.md v0.4.0 and referenced the semantic colors through components. |
 | `autocli` Chrome extension did not connect | 1 | Recorded the timeout and switched to read-only web search with primary-source filtering. |
+| `_NSGetExecutablePath` was undeclared during the first iOS compile | 1 | Added its official `<mach-o/dyld.h>` declaration to the unified project header. |
+| `UIButton.contentEdgeInsets` is deprecated on the iOS 15 target | 1 | Replaced legacy button styling with the native iOS 15 `UIButtonConfiguration` API. |
+| No iOS device is connected for TrollStore runtime validation | 1 | Continue with build/static/logic verification and leave real-device acceptance explicitly pending. |
