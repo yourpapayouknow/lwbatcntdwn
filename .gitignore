@@ -1,6 +1,6 @@
 /refrence/
 /build/
 /.theos/
+.DS_Store
 *.ipa
 *.tipa
-
