@@ -31,9 +31,12 @@ Build an Objective-C/UIKit TrollStore package for iOS 15–16 that shows a syste
    - Reuse the selected native approach for battery observation, configuration, background operation, and overlay presentation.
 4. **Tests and package build** — complete
    - Run unit/logic tests, static checks, build, sign/package as `.tipa`, and inspect entitlements/bundle contents.
-5. **Device handoff** — in progress
+5. **Device handoff** — complete
    - Provide install and low-battery validation steps, known version limitations, and recovery instructions.
-   - Runtime acceptance remains pending because no iOS device is connected.
+   - User reported successful real-device low-battery overlay testing.
+6. **Small-screen and icon follow-up** — complete
+   - Keep the monitor switch inside its card on compact-width devices.
+   - Add a complete iPhone/iPad App Icon asset catalog and rebuild the `.tipa`.
 
 ## Errors Encountered
 
@@ -47,3 +50,6 @@ Build an Objective-C/UIKit TrollStore package for iOS 15–16 that shows a syste
 | `_NSGetExecutablePath` was undeclared during the first iOS compile | 1 | Added its official `<mach-o/dyld.h>` declaration to the unified project header. |
 | `UIButton.contentEdgeInsets` is deprecated on the iOS 15 target | 1 | Replaced legacy button styling with the native iOS 15 `UIButtonConfiguration` API. |
 | No iOS device is connected for TrollStore runtime validation | 1 | Continue with build/static/logic verification and leave real-device acceptance explicitly pending. |
+| Monitor switch overflows its card on small screens | 1 | Root cause confirmed as equal default compression priorities between a long wrapping label and fixed-size switch. |
+| Installed app has an empty icon | 1 | Root cause confirmed: no icon catalog, bundle icon declaration, or icon resource existed in the package. |
+| `plutil` rejected Asset Catalog `Contents.json` | 1 | The files are JSON rather than XML plists; validate them with a JSON parser while retaining `actool` as the authoritative asset compiler. |

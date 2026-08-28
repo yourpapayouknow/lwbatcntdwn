@@ -82,6 +82,7 @@ Low Battery Countdown is a minimal jailbreak utility for TrollStore users on iOS
 - Use an 8 pt base spacing rhythm.
 - Keep the warning icon, battery value, countdown, progress, and explanation in a single vertical flow.
 - Adapt width to compact and regular size classes without changing information order.
+- On narrow screens, explanatory labels must wrap and yield horizontal space before fixed-size controls such as switches or value labels.
 
 ## Elevation & Depth
 
@@ -107,6 +108,7 @@ Low Battery Countdown is a minimal jailbreak utility for TrollStore users on iOS
 - **Progress indicator:** capsule track whose red fill decreases with time and remains empty at zero.
 - **Explanation:** short text telling the user to connect power; no close button or secondary action.
 - **Settings:** native grouped controls for threshold and countdown duration with clear valid ranges.
+- **Settings switch row:** keep the switch fully inside its card at all widths; the explanatory label wraps instead of pushing or compressing the switch.
 
 ## Do's and Don'ts
 

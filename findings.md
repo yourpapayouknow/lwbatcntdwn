@@ -37,3 +37,9 @@
 - TrollSpeed is GPL, so it will be used only as a feasibility/API cross-check. The implementation should derive from Letterpress/TRHud if that subtree is MIT, avoiding license contamination and excess code.
 - A misleading fork (`malikmohib/Trolstore`) was moved to `/tmp/lwbatcntdwn-untrusted-trolstore-ref` after its content failed provenance checks. The official `Lessica/TrollSpeed` clone replaced it.
 - Local build decision: use `xcrun --sdk iphoneos clang` plus `ldid` and `zip`; no Theos installation or project dependency is necessary.
+
+## Device Follow-up
+
+- The user confirmed the low-battery overlay works on a real device.
+- Small-screen switch overflow is isolated to the settings row's horizontal compression priorities; the HUD overlay and background monitor are unaffected.
+- The empty installed icon is caused by the absence of an asset catalog and `CFBundleIcons` metadata.

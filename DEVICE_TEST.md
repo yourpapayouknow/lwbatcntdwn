@@ -8,7 +8,7 @@
 
 ## Install
 
-1. Copy `build/LowBatCountdown-1.0.0.tipa` to the device.
+1. Copy `build/LowBatCountdown-1.0.1.tipa` to the device.
 2. Share/open the file with TrollStore and install it.
 3. Open **低电量倒计时** once.
 4. Keep **监控服务** enabled, then choose the desired trigger percentage and countdown duration.
@@ -40,10 +40,9 @@
 
 ## Acceptance Record
 
-- Device model: pending
-- iOS version: pending
-- TrollStore version: pending
-- Immediate overlay test: pending
-- Real low-battery trigger: pending
-- Charging dismissal: pending
-
+- Device model: not supplied
+- iOS version: not supplied
+- TrollStore version: not supplied
+- Immediate overlay test: passed per user report
+- Real low-battery trigger: passed per user report
+- Charging dismissal: not separately reported

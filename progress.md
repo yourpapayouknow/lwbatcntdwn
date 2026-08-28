@@ -29,3 +29,11 @@
 - Completed phase 3 and started phase 4.
 - Rebuilt from an empty `build/` directory, reran all tests, inspected the final package, and recorded SHA-256 `b98e39104dd68f8e6ff45f967d83bccc3a3b0cea21b6391d4d595ea8209cc961`.
 - Completed phase 4. Added `DEVICE_TEST.md`; phase 5 is waiting for an iOS 15–16 TrollStore device.
+- User confirmed real-device overlay success and reported a compact-width switch overflow plus an empty App Icon.
+- Confirmed both root causes from source and final bundle contents; started phase 6.
+- Applied compact-width content-priority rules and generated a black/red low-battery countdown icon using the built-in image generation tool.
+- Added the complete iPhone/iPad AppIcon asset catalog, integrated Apple's `actool` into packaging, and bumped the package to 1.0.1.
+- DESIGN.md lint passed with 0 errors and 0 warnings. A clean build, state tests, arm64 inspection, entitlement inspection, icon metadata extraction, and asset bundle checks all passed for 1.0.1.
+- Verified the actual packaged 120 px iPhone icon renders clearly at launcher size.
+- Completed phases 5 and 6; compact-width device revalidation remains for the user after installing 1.0.1.
+- A supplemental `plutil` command incorrectly treated Asset Catalog JSON as XML plist; switched to JSON validation. `actool` compilation itself had already passed.

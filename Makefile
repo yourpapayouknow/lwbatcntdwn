@@ -3,10 +3,11 @@ SHELL := /bin/zsh
 APP := LowBat
 BUILD := build
 APP_DIR := $(BUILD)/Payload/$(APP).app
-TIPA := $(BUILD)/LowBatCountdown-1.0.0.tipa
+TIPA := $(BUILD)/LowBatCountdown-1.0.1.tipa
 SDK := $(shell xcrun --sdk iphoneos --show-sdk-path)
 CC := xcrun --sdk iphoneos clang
 HOST_CC := xcrun --sdk macosx clang
+ASSET_FILES := $(shell find Resources/Assets.xcassets -type f)
 
 M_SOURCES := Sources/main.m Sources/LBShared.m Sources/LBApp.m Sources/LBHud.m
 C_SOURCES := Sources/LBState.c
@@ -29,10 +30,12 @@ $(BUILD)/%.o: Sources/%.m | $(BUILD)
 $(BUILD)/%.o: Sources/%.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(APP_DIR)/$(APP): $(OBJECTS) Resources/Info.plist Resources/entitlements.plist
+$(APP_DIR)/$(APP): $(OBJECTS) Resources/Info.plist Resources/entitlements.plist $(ASSET_FILES)
 	mkdir -p $(APP_DIR)
 	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
 	cp Resources/Info.plist $(APP_DIR)/Info.plist
+	xcrun actool Resources/Assets.xcassets --compile $(APP_DIR) --platform iphoneos --minimum-deployment-target 15.0 --app-icon AppIcon --output-partial-info-plist $(BUILD)/asset-info.plist --target-device iphone --target-device ipad --output-format human-readable-text
+	/usr/libexec/PlistBuddy -c "Merge $(BUILD)/asset-info.plist" $(APP_DIR)/Info.plist
 	ldid -SResources/entitlements.plist $@
 
 package: $(APP_DIR)/$(APP)
@@ -46,9 +49,10 @@ test: | $(BUILD)
 inspect: package
 	file $(APP_DIR)/$(APP)
 	plutil -lint $(APP_DIR)/Info.plist Resources/entitlements.plist
+	plutil -extract CFBundleIcons xml1 -o - $(APP_DIR)/Info.plist
+	test -f $(APP_DIR)/Assets.car
 	ldid -e $(APP_DIR)/$(APP)
 	unzip -l $(TIPA)
 
 clean:
 	rm -rf $(BUILD)
-

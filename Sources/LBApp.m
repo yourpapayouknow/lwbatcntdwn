@@ -49,11 +49,16 @@
     label.numberOfLines = 0;
     label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
     label.textColor = UIColor.secondaryLabelColor;
+    [label setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
+    [label setContentCompressionResistancePriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
+    [self.monitorSwitch setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    [self.monitorSwitch setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
 
     UIStackView *line = [[UIStackView alloc] initWithArrangedSubviews:@[label, self.monitorSwitch]];
     line.axis = UILayoutConstraintAxisHorizontal;
     line.spacing = 12.0;
     line.alignment = UIStackViewAlignmentCenter;
+    line.distribution = UIStackViewDistributionFill;
     return line;
 }
 
