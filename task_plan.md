@@ -23,11 +23,11 @@ Build an Objective-C/UIKit TrollStore package for iOS 15–16 that shows a syste
 
 1. **Repository and design baseline** — complete
    - Create Git baseline, planning files, DESIGN.md, and lint the design file.
-2. **Reference research and feasibility proof** — in progress
+2. **Reference research and feasibility proof** — complete
    - Find and clone only relevant TrollStore, battery-monitor, background, and SpringBoard-overlay references.
    - Record source, reuse candidate, integration plan, and adaptation level in `refrence/refrence.md`.
    - Prove whether TrollStore-only system-wide presentation is feasible on iOS 15–16 before full implementation.
-3. **Minimal implementation** — pending
+3. **Minimal implementation** — in progress
    - Reuse the selected native approach for battery observation, configuration, background operation, and overlay presentation.
 4. **Tests and package build** — pending
    - Run unit/logic tests, static checks, build, sign/package as `.tipa`, and inspect entitlements/bundle contents.
@@ -42,3 +42,4 @@ Build an Objective-C/UIKit TrollStore package for iOS 15–16 that shows a syste
 | Design depth prompt returned no selection | 1 | Reissued the same design question and received the selected answer. |
 | DESIGN.md used an unsupported `tokens` wrapper | 1 | Read the official CLI specification and moved values under supported top-level token groups. |
 | DESIGN.md component sub-token names were invalid | 1 | Replaced them with names accepted by design.md v0.4.0 and referenced the semantic colors through components. |
+| `autocli` Chrome extension did not connect | 1 | Recorded the timeout and switched to read-only web search with primary-source filtering. |

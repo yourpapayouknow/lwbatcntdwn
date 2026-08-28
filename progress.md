@@ -10,3 +10,12 @@
 - Created the project planning files and DESIGN.md; the first lint had one token-schema warning, then the frontmatter was corrected against the official CLI specification.
 - Refined component tokens to the official `backgroundColor`, `textColor`, `rounded`, `padding`, and `typography` schema after the second lint exposed invalid sub-token names.
 - DESIGN.md validation now reports 0 errors and 0 warnings; phase 1 is complete.
+- Started phase 2. Two `autocli` Google searches produced no results because the Chrome extension did not connect within 30 seconds; switched to the web search fallback.
+- Completed the first primary-source web pass across TrollStore, TrollFools, Apple PowerManagement, and battery-monitoring examples. Battery observation is straightforward; TrollStore-only global presentation is still unproven.
+- The official TrollStore limitations rule out launch daemons and system-process injection, but Letterpress provides a promising standalone TrollStore floating-overlay implementation to inspect next.
+- Verified Letterpress is an MIT-licensed iOS 15+ `.tipa` with a system-wide/lock-screen overlay claim. Its source is now the primary presentation reference.
+- Found TrollSpeed's proven TrollStore architecture: root-spawned UIDaemon/HUD process with assistivetouchd entitlements. This is now the preferred minimal system-wide route.
+- Cloned Letterpress, TrollStore, and the official Lessica/TrollSpeed into ignored `refrence/`; documented reuse levels in `refrence/refrence.md`.
+- Rejected and quarantined a misleading TrollSpeed fork before using any of its code.
+- Verified the local build chain: Xcode 16.3, iPhoneOS SDK 18.4, `ldid`, and `zip` are available. Theos is absent, so the project will use a dependency-free Xcode clang Makefile.
+- Completed phase 2 with a source-backed feasible architecture; started phase 3.
