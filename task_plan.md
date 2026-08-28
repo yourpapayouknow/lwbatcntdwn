@@ -37,6 +37,10 @@ Build an Objective-C/UIKit TrollStore package for iOS 15–16 that shows a syste
 6. **Small-screen and icon follow-up** — complete
    - Keep the monitor switch inside its card on compact-width devices.
    - Add a complete iPhone/iPad App Icon asset catalog and rebuild the `.tipa`.
+7. **Bundle identifier correction** — complete
+   - Replace every runtime namespace with `com.iwmeiagent.lowbatcntdwn`.
+   - Preserve intentional coexistence with the older `com.codex.lowbat` build.
+   - Rebuild and inspect version 1.0.2.
 
 ## Errors Encountered
 

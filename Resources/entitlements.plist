@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>application-identifier</key>
-    <string>com.codex.lowbat</string>
+	<key>application-identifier</key>
+	<string>com.iwmeiagent.lowbatcntdwn</string>
     <key>com.apple.QuartzCore.displayable-context</key>
     <true/>
     <key>com.apple.QuartzCore.secure-mode</key>
@@ -42,4 +42,3 @@
     <true/>
 </dict>
 </plist>
-

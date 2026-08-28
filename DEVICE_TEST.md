@@ -8,11 +8,13 @@
 
 ## Install
 
-1. Copy `build/LowBatCountdown-1.0.1.tipa` to the device.
+1. Copy `build/LowBatCountdown-1.0.2.tipa` to the device.
 2. Share/open the file with TrollStore and install it.
 3. Open **低电量倒计时** once.
 4. Keep **监控服务** enabled, then choose the desired trigger percentage and countdown duration.
 5. After every full device reboot, open the app once to restore monitoring. TrollStore cannot install this helper as a boot launch daemon.
+
+The 1.0.2 package uses `com.iwmeiagent.lowbatcntdwn`. It can coexist with the older `com.codex.lowbat` build; their preferences, notifications, and HUD locks are independent.
 
 ## Immediate Overlay Test
 

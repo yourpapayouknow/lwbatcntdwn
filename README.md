@@ -42,7 +42,7 @@ make package
 make inspect
 ```
 
-构建产物为 `build/LowBatCountdown-1.0.1.tipa`。`make all` 会依次运行测试和打包。
+构建产物为 `build/LowBatCountdown-1.0.2.tipa`。`make all` 会依次运行测试和打包。
 
 ### 安装到设备
 
@@ -71,4 +71,3 @@ Makefile                 测试、打包和产物检查
 ## 真机验收
 
 详细步骤见 [DEVICE_TEST.md](DEVICE_TEST.md)，包括测试弹窗、真实低电量触发、重复通知处理和充电解除行为。
-

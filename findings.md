@@ -43,3 +43,4 @@
 - The user confirmed the low-battery overlay works on a real device.
 - Small-screen switch overflow is isolated to the settings row's horizontal compression priorities; the HUD overlay and background monitor are unaffected.
 - The empty installed icon is caused by the absence of an asset catalog and `CFBundleIcons` metadata.
+- The user selected `com.iwmeiagent.lowbatcntdwn` as the corrected Bundle Identifier and explicitly chose independent coexistence with the old `com.codex.lowbat` package.

@@ -23,11 +23,11 @@
 
 #include "LBState.h"
 
-#define LB_PREF_PATH @"/var/mobile/Library/Preferences/com.codex.lowbat.plist"
-#define LB_CFG_NOTE "com.codex.lowbat.config"
-#define LB_STOP_NOTE "com.codex.lowbat.stop"
-#define LB_TEST_NOTE "com.codex.lowbat.test"
-#define LB_LOCK_PATH "/var/tmp/com.codex.lowbat.hud.lock"
+#define LB_PREF_PATH @"/var/mobile/Library/Preferences/com.iwmeiagent.lowbatcntdwn.plist"
+#define LB_CFG_NOTE "com.iwmeiagent.lowbatcntdwn.config"
+#define LB_STOP_NOTE "com.iwmeiagent.lowbatcntdwn.stop"
+#define LB_TEST_NOTE "com.iwmeiagent.lowbatcntdwn.test"
+#define LB_LOCK_PATH "/var/tmp/com.iwmeiagent.lowbatcntdwn.hud.lock"
 
 extern char **environ;
 
