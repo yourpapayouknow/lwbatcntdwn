@@ -27,3 +27,5 @@
 - Added HUD cleanup on app deletion, SpringBoard relaunch recovery, private host API availability checks, and duplicate-event coverage.
 - `make all` passed after the safety changes; Clang static analysis completed with zero reports for all Objective-C sources.
 - Completed phase 3 and started phase 4.
+- Rebuilt from an empty `build/` directory, reran all tests, inspected the final package, and recorded SHA-256 `b98e39104dd68f8e6ff45f967d83bccc3a3b0cea21b6391d4d595ea8209cc961`.
+- Completed phase 4. Added `DEVICE_TEST.md`; phase 5 is waiting for an iOS 15–16 TrollStore device.

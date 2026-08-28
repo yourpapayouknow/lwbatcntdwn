@@ -29,10 +29,11 @@ Build an Objective-C/UIKit TrollStore package for iOS 15–16 that shows a syste
    - Prove whether TrollStore-only system-wide presentation is feasible on iOS 15–16 before full implementation.
 3. **Minimal implementation** — complete
    - Reuse the selected native approach for battery observation, configuration, background operation, and overlay presentation.
-4. **Tests and package build** — in progress
+4. **Tests and package build** — complete
    - Run unit/logic tests, static checks, build, sign/package as `.tipa`, and inspect entitlements/bundle contents.
-5. **Device handoff** — pending
+5. **Device handoff** — in progress
    - Provide install and low-battery validation steps, known version limitations, and recovery instructions.
+   - Runtime acceptance remains pending because no iOS device is connected.
 
 ## Errors Encountered
 
