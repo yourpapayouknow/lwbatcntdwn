@@ -15,7 +15,7 @@ OBJECTS := $(patsubst Sources/%.m,$(BUILD)/%.o,$(M_SOURCES)) $(patsubst Sources/
 
 CFLAGS := -arch arm64 -isysroot $(SDK) -miphoneos-version-min=15.0 -O2 -fvisibility=hidden -Wall -Wextra -Werror -ISources
 OBJCFLAGS := $(CFLAGS) -fobjc-arc -fmodules
-LDFLAGS := -arch arm64 -isysroot $(SDK) -miphoneos-version-min=15.0 -Wl,-dead_strip -framework Foundation -framework UIKit -framework CoreGraphics -framework QuartzCore
+LDFLAGS := -arch arm64 -isysroot $(SDK) -miphoneos-version-min=15.0 -Wl,-dead_strip -framework Foundation -framework UIKit -framework CoreGraphics -framework QuartzCore -framework AudioToolbox
 
 .PHONY: all package test clean inspect serve
 

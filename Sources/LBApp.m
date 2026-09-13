@@ -10,6 +10,8 @@
 @property(nonatomic, strong) UISlider *thresholdSlider;
 @property(nonatomic, strong) UISlider *durationSlider;
 @property(nonatomic, strong) UISwitch *monitorSwitch;
+@property(nonatomic, strong) UISwitch *vibrateSwitch;
+@property(nonatomic, strong) UISwitch *soundSwitch;
 @property(nonatomic, strong) UIButton *testButton;
 @end
 
@@ -39,6 +41,35 @@
     line.spacing = 12.0;
     line.alignment = UIStackViewAlignmentCenter;
     [value.widthAnchor constraintEqualToConstant:72.0].active = YES;
+    return line;
+}
+
+// 创建带副标题的开关行。
+- (UIStackView *)mkRow:(NSString *)title subtitle:(NSString *)subtitle toggle:(UISwitch *)toggle {
+    UILabel *titLabel = [[UILabel alloc] init];
+    titLabel.text = title;
+    titLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+    titLabel.textColor = UIColor.labelColor;
+
+    UILabel *subLabel = [[UILabel alloc] init];
+    subLabel.text = subtitle;
+    subLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
+    subLabel.textColor = UIColor.secondaryLabelColor;
+    subLabel.numberOfLines = 0;
+
+    UIStackView *textStack = [[UIStackView alloc] initWithArrangedSubviews:@[titLabel, subLabel]];
+    textStack.axis = UILayoutConstraintAxisVertical;
+    textStack.spacing = 2.0;
+    [textStack setContentHuggingPriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
+    [textStack setContentCompressionResistancePriority:UILayoutPriorityDefaultLow forAxis:UILayoutConstraintAxisHorizontal];
+
+    [toggle setContentHuggingPriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+    [toggle setContentCompressionResistancePriority:UILayoutPriorityRequired forAxis:UILayoutConstraintAxisHorizontal];
+
+    UIStackView *line = [[UIStackView alloc] initWithArrangedSubviews:@[textStack, toggle]];
+    line.axis = UILayoutConstraintAxisHorizontal;
+    line.spacing = 12.0;
+    line.alignment = UIStackViewAlignmentCenter;
     return line;
 }
 
@@ -91,6 +122,27 @@
     self.monitorSwitch.onTintColor = UIColor.systemRedColor;
     [self.monitorSwitch addTarget:self action:@selector(monChanged:) forControlEvents:UIControlEventValueChanged];
 
+    self.vibrateSwitch = [[UISwitch alloc] init];
+    self.vibrateSwitch.onTintColor = UIColor.systemRedColor;
+    [self.vibrateSwitch addTarget:self action:@selector(feedChanged:) forControlEvents:UIControlEventValueChanged];
+
+    self.soundSwitch = [[UISwitch alloc] init];
+    self.soundSwitch.onTintColor = UIColor.systemRedColor;
+    [self.soundSwitch addTarget:self action:@selector(feedChanged:) forControlEvents:UIControlEventValueChanged];
+
+    BOOL isPad = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+    if (isPad) {
+        self.vibrateSwitch.enabled = NO;
+        self.vibrateSwitch.on = NO;
+    }
+
+    UIStackView *feedStack = [[UIStackView alloc] initWithArrangedSubviews:@[
+        [self mkRow:@"弹窗强震动" subtitle:isPad ? @"平板设备无振动马达" : @"触发弹窗时短促强震动反馈" toggle:self.vibrateSwitch],
+        [self mkRow:@"弹窗提示音" subtitle:@"触发弹窗时播放系统默认通知声音" toggle:self.soundSwitch],
+    ]];
+    feedStack.axis = UILayoutConstraintAxisVertical;
+    feedStack.spacing = 14.0;
+
     UIButtonConfiguration *buttonConfig = [UIButtonConfiguration filledButtonConfiguration];
     buttonConfig.title = @"测试不可关闭弹窗";
     buttonConfig.baseBackgroundColor = UIColor.systemRedColor;
@@ -105,6 +157,7 @@
         [self mkGroup:@"监控服务" control:[self mkSwitch]],
         [self mkGroup:@"触发电量" control:[self mkSlider:self.thresholdSlider value:self.thresholdLabel]],
         [self mkGroup:@"倒计时" control:[self mkSlider:self.durationSlider value:self.durationLabel]],
+        [self mkGroup:@"提示反馈" control:feedStack],
         self.testButton,
         self.statusLabel,
     ]];
@@ -127,6 +180,9 @@
     self.thresholdSlider.value = [config[@"threshold"] floatValue];
     self.durationSlider.value = [config[@"duration"] floatValue];
     self.monitorSwitch.on = [config[@"enabled"] boolValue];
+    BOOL isPad = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+    self.vibrateSwitch.on = !isPad && [config[@"vibrate"] boolValue];
+    self.soundSwitch.on = [config[@"sound"] boolValue];
     [self syncUI];
 }
 
@@ -150,6 +206,8 @@
         @"threshold": @(threshold),
         @"duration": @(duration),
         @"enabled": @(self.monitorSwitch.on),
+        @"vibrate": @(self.vibrateSwitch.on),
+        @"sound": @(self.soundSwitch.on),
     };
     self.statusLabel.text = lb_svcfg(config) ? @"配置已保存" : @"配置保存失败，请重新安装并检查权限";
 }
@@ -159,6 +217,12 @@
     if (sender == self.thresholdSlider) sender.value = lroundf(sender.value);
     if (sender == self.durationSlider) sender.value = lroundf(sender.value / 10.0f) * 10;
     [self syncUI];
+    [self saveCfg];
+}
+
+// 处理震动与声音开关变化。
+- (void)feedChanged:(UISwitch *)sender {
+    (void)sender;
     [self saveCfg];
 }
 

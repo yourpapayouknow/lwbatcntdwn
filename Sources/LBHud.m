@@ -22,7 +22,47 @@
 
 @end
 
+// 检查设备是否支持震动。
+static BOOL lb_canshake(void) {
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) return NO;
+    Class hapticClass = objc_getClass("CHHapticEngine");
+    if (hapticClass) {
+        id capabilities = [hapticClass valueForKey:@"capabilitiesForHardware"];
+        if (capabilities && [capabilities respondsToSelector:NSSelectorFromString(@"supportsHaptics")]) {
+            return [[capabilities valueForKey:@"supportsHaptics"] boolValue];
+        }
+    }
+    return YES;
+}
+
+// 播放短促强震动与系统默认通知声音。
+static void lb_playalert(BOOL shake, BOOL sound) {
+    if (shake && lb_canshake()) {
+        AudioServicesPlaySystemSound(1520);
+        if (@available(iOS 13.0, *)) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleHeavy];
+                [generator prepare];
+                [generator impactOccurred];
+            });
+        }
+    }
+    if (sound) {
+        AudioServicesPlaySystemSound(1007);
+    }
+}
+
+// 判断当前是否处于夜间锁定保护时段（23:30 - 07:00）。
+static BOOL lb_isnight(void) {
+    NSCalendar *calendar = NSCalendar.currentCalendar;
+    NSDateComponents *comps = [calendar components:(NSCalendarUnitHour | NSCalendarUnitMinute) fromDate:[NSDate date]];
+    NSInteger mins = comps.hour * 60 + comps.minute;
+    return (mins >= (23 * 60 + 30)) || (mins < (7 * 60));
+}
+
 @interface LBHudCtl ()
+@property(nonatomic, strong) UIImageView *iconView;
+@property(nonatomic, strong) UILabel *titleLabel;
 @property(nonatomic, strong) UILabel *batteryLabel;
 @property(nonatomic, strong) UILabel *countLabel;
 @property(nonatomic, strong) UILabel *messageLabel;
@@ -30,6 +70,10 @@
 @property(nonatomic, strong) NSTimer *timer;
 @property(nonatomic, assign) LBState state;
 @property(nonatomic, assign) BOOL forcedTest;
+@property(nonatomic, assign) BOOL vibrateEnabled;
+@property(nonatomic, assign) BOOL soundEnabled;
+@property(nonatomic, assign) BOOL nightLocked;
+@property(nonatomic, assign) BOOL alerted;
 @end
 
 @implementation LBHudCtl
@@ -58,11 +102,13 @@
     card.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:card];
 
-    UILabel *title = [[UILabel alloc] init];
-    title.text = @"电量过低";
-    title.textColor = UIColor.whiteColor;
-    title.textAlignment = NSTextAlignmentCenter;
-    title.font = [UIFont systemFontOfSize:20.0 weight:UIFontWeightSemibold];
+    self.iconView = [self mkIcon];
+
+    self.titleLabel = [[UILabel alloc] init];
+    self.titleLabel.text = @"电量过低";
+    self.titleLabel.textColor = UIColor.whiteColor;
+    self.titleLabel.textAlignment = NSTextAlignmentCenter;
+    self.titleLabel.font = [UIFont systemFontOfSize:20.0 weight:UIFontWeightSemibold];
 
     self.batteryLabel = [[UILabel alloc] init];
     self.batteryLabel.textColor = UIColor.secondaryLabelColor;
@@ -90,7 +136,7 @@
     self.messageLabel.numberOfLines = 0;
 
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
-        [self mkIcon], title, self.batteryLabel, self.countLabel, self.progressView, self.messageLabel,
+        self.iconView, self.titleLabel, self.batteryLabel, self.countLabel, self.progressView, self.messageLabel,
     ]];
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 14.0;
@@ -111,6 +157,8 @@
     ]];
 
     NSDictionary *config = lb_ldcfg();
+    self.vibrateEnabled = [config[@"vibrate"] boolValue];
+    self.soundEnabled = [config[@"sound"] boolValue];
     lb_init(&_state, [config[@"threshold"] intValue], [config[@"duration"] intValue]);
 }
 
@@ -142,6 +190,8 @@
         notify_post(LB_STOP_NOTE);
         return;
     }
+    self.vibrateEnabled = [config[@"vibrate"] boolValue];
+    self.soundEnabled = [config[@"sound"] boolValue];
     lb_cfg(&_state, [config[@"threshold"] intValue], [config[@"duration"] intValue]);
     [self evalBat:NO];
 }
@@ -149,8 +199,8 @@
 // 将测试事件转换为一次强制低电量状态。
 - (void)forceTest {
     self.forcedTest = YES;
-    lb_feed(&_state, 0, false);
-    [self drawState:0];
+    self.alerted = NO;
+    [self evalBat:NO];
 }
 
 // 处理系统电量变化通知。
@@ -174,23 +224,52 @@
 
     if (charging) self.forcedTest = NO;
     lb_feed(&_state, self.forcedTest ? 0 : percent, charging);
-    if (tick && !charging) lb_tick(&_state);
+    if (tick && !charging && _state.mode == LBModeCount) lb_tick(&_state);
+
+    BOOL isNight = lb_isnight();
+    if (_state.mode == LBModeCount || _state.mode == LBModeHold) {
+        self.nightLocked = NO;
+        if (!self.alerted) {
+            lb_playalert(self.vibrateEnabled, self.soundEnabled);
+            self.alerted = YES;
+        }
+    } else {
+        self.alerted = NO;
+        self.nightLocked = isNight;
+    }
+
     [self drawState:percent];
 }
 
 // 将状态渲染到不可关闭窗口。
 - (void)drawState:(int)percent {
-    BOOL visible = _state.mode != LBModeHidden;
+    BOOL visible = self.nightLocked || (_state.mode != LBModeHidden);
     self.hudWindow.hidden = !visible;
     if (!visible) return;
 
-    self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
-    self.countLabel.text = [NSString stringWithFormat:@"%d", _state.remaining];
-    float progress = _state.duration > 0 ? (float)_state.remaining / (float)_state.duration : 0.0f;
-    [self.progressView setProgress:progress animated:YES];
-    self.messageLabel.text = _state.mode == LBModeHold
-        ? @"倒计时已结束，请接通电源后继续使用"
-        : @"设备电量即将耗尽，请立即连接电源";
+    UIImageSymbolConfiguration *symCfg = [UIImageSymbolConfiguration configurationWithPointSize:42.0 weight:UIImageSymbolWeightSemibold];
+    if (self.nightLocked) {
+        self.iconView.image = [UIImage systemImageNamed:@"lock.fill" withConfiguration:symCfg];
+        self.iconView.tintColor = UIColor.systemBlueColor;
+        self.titleLabel.text = @"夜间锁定";
+        self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
+        self.countLabel.hidden = YES;
+        self.progressView.hidden = YES;
+        self.messageLabel.text = @"23:30 - 07:00 时段锁定中\n仅在过 7 点或电量降至阈值时解除";
+    } else {
+        self.iconView.image = [UIImage systemImageNamed:@"battery.0" withConfiguration:symCfg];
+        self.iconView.tintColor = UIColor.systemRedColor;
+        self.titleLabel.text = @"电量过低";
+        self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
+        self.countLabel.hidden = NO;
+        self.progressView.hidden = NO;
+        self.countLabel.text = [NSString stringWithFormat:@"%d", _state.remaining];
+        float progress = _state.duration > 0 ? (float)_state.remaining / (float)_state.duration : 0.0f;
+        [self.progressView setProgress:progress animated:YES];
+        self.messageLabel.text = _state.mode == LBModeHold
+            ? @"倒计时已结束，请接通电源后继续使用"
+            : @"设备电量即将耗尽，请立即连接电源";
+    }
 }
 
 // 清理系统通知监听。

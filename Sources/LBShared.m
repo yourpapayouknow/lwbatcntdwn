@@ -12,10 +12,14 @@ static NSDictionary *lb_normcfg(NSDictionary *input) {
     if (threshold < 1 || threshold > 20) threshold = 5;
     if (duration < 10 || duration > 300) duration = 60;
     NSNumber *enabled = input[@"enabled"] ?: @YES;
+    NSNumber *vibrate = input[@"vibrate"] ?: @YES;
+    NSNumber *sound = input[@"sound"] ?: @NO;
     return @{
         @"threshold": @(threshold),
         @"duration": @(duration),
         @"enabled": @([enabled boolValue]),
+        @"vibrate": @([vibrate boolValue]),
+        @"sound": @([sound boolValue]),
     };
 }
 

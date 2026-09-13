@@ -1,5 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <AudioToolbox/AudioToolbox.h>
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <dlfcn.h>

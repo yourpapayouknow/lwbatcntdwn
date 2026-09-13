@@ -11,6 +11,12 @@ TIPA_NAME = "LowBatCountdown-1.0.2.tipa"
 
 def get_local_ip():
     try:
+        import subprocess
+        for iface in ["en0", "en1"]:
+            res = subprocess.run(["ipconfig", "getifaddr", iface], capture_output=True, text=True)
+            ip = res.stdout.strip()
+            if res.returncode == 0 and ip:
+                return ip
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
