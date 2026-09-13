@@ -60,8 +60,47 @@ static BOOL lb_isnight(void) {
     return (mins >= (23 * 60 + 30)) || (mins < (7 * 60));
 }
 
+// 生成带月亮睡眠镂空的大锁图标。
+static UIImage *lb_mklockimg(CGFloat pt) {
+    static UIImage *cached = nil;
+    if (cached) return cached;
+
+    UIImageSymbolConfiguration *lockCfg = [UIImageSymbolConfiguration configurationWithPointSize:pt weight:UIImageSymbolWeightBold];
+    UIImage *lock = [[UIImage systemImageNamed:@"lock.fill" withConfiguration:lockCfg] imageWithTintColor:UIColor.systemBlueColor renderingMode:UIImageRenderingModeAlwaysOriginal];
+    if (!lock) return nil;
+
+    CGSize size = lock.size;
+    UIGraphicsImageRendererFormat *fmt = [UIGraphicsImageRendererFormat defaultFormat];
+    fmt.opaque = NO;
+    fmt.scale = UIScreen.mainScreen.scale;
+    UIGraphicsImageRenderer *rndr = [[UIGraphicsImageRenderer alloc] initWithSize:size format:fmt];
+
+    UIImage *outImg = [rndr imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
+        [lock drawInRect:CGRectMake(0, 0, size.width, size.height)];
+
+        CGFloat moonPt = pt * 0.38;
+        UIImageSymbolConfiguration *moonCfg = [UIImageSymbolConfiguration configurationWithPointSize:moonPt weight:UIImageSymbolWeightBold];
+        UIImage *moon = [UIImage systemImageNamed:@"moon.zzz.fill" withConfiguration:moonCfg];
+        if (!moon) moon = [UIImage systemImageNamed:@"moon.fill" withConfiguration:moonCfg];
+        if (moon) {
+            CGSize mSize = moon.size;
+            CGFloat bodyTop = size.height * 0.36;
+            CGFloat bodyH = size.height - bodyTop;
+            CGFloat mX = (size.width - mSize.width) / 2.0;
+            CGFloat mY = bodyTop + (bodyH - mSize.height) / 2.0;
+            CGRect mRect = CGRectMake(mX, mY, mSize.width, mSize.height);
+
+            CGContextSetBlendMode(ctx.CGContext, kCGBlendModeDestinationOut);
+            [moon drawInRect:mRect];
+        }
+    }];
+    cached = [outImg imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
+    return cached;
+}
+
 @interface LBHudCtl ()
 @property(nonatomic, strong) UIImageView *iconView;
+@property(nonatomic, strong) NSLayoutConstraint *iconHeight;
 @property(nonatomic, strong) UILabel *titleLabel;
 @property(nonatomic, strong) UILabel *batteryLabel;
 @property(nonatomic, strong) UILabel *countLabel;
@@ -85,7 +124,6 @@ static BOOL lb_isnight(void) {
     UIImageView *view = [[UIImageView alloc] initWithImage:image];
     view.tintColor = UIColor.systemRedColor;
     view.contentMode = UIViewContentModeScaleAspectFit;
-    [view.heightAnchor constraintEqualToConstant:48.0].active = YES;
     return view;
 }
 
@@ -103,6 +141,8 @@ static BOOL lb_isnight(void) {
     [self.view addSubview:card];
 
     self.iconView = [self mkIcon];
+    self.iconHeight = [self.iconView.heightAnchor constraintEqualToConstant:48.0];
+    self.iconHeight.active = YES;
 
     self.titleLabel = [[UILabel alloc] init];
     self.titleLabel.text = @"电量过低";
@@ -247,25 +287,32 @@ static BOOL lb_isnight(void) {
     self.hudWindow.hidden = !visible;
     if (!visible) return;
 
-    UIImageSymbolConfiguration *symCfg = [UIImageSymbolConfiguration configurationWithPointSize:42.0 weight:UIImageSymbolWeightSemibold];
     if (self.nightLocked) {
-        self.iconView.image = [UIImage systemImageNamed:@"lock.fill" withConfiguration:symCfg];
-        self.iconView.tintColor = UIColor.systemBlueColor;
-        self.titleLabel.text = @"夜间锁定";
+        self.iconHeight.constant = 130.0;
+        self.iconView.image = lb_mklockimg(110.0);
+        self.titleLabel.hidden = YES;
+        self.batteryLabel.hidden = NO;
         self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
+        self.batteryLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightMedium];
         self.countLabel.hidden = YES;
         self.progressView.hidden = YES;
-        self.messageLabel.text = @"23:30 - 07:00 时段锁定中\n仅在过 7 点或电量降至阈值时解除";
+        self.messageLabel.hidden = YES;
     } else {
+        self.iconHeight.constant = 48.0;
+        UIImageSymbolConfiguration *symCfg = [UIImageSymbolConfiguration configurationWithPointSize:42.0 weight:UIImageSymbolWeightSemibold];
         self.iconView.image = [UIImage systemImageNamed:@"battery.0" withConfiguration:symCfg];
         self.iconView.tintColor = UIColor.systemRedColor;
+        self.titleLabel.hidden = NO;
         self.titleLabel.text = @"电量过低";
+        self.batteryLabel.hidden = NO;
         self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
+        self.batteryLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightRegular];
         self.countLabel.hidden = NO;
         self.progressView.hidden = NO;
         self.countLabel.text = [NSString stringWithFormat:@"%d", _state.remaining];
         float progress = _state.duration > 0 ? (float)_state.remaining / (float)_state.duration : 0.0f;
         [self.progressView setProgress:progress animated:YES];
+        self.messageLabel.hidden = NO;
         self.messageLabel.text = _state.mode == LBModeHold
             ? @"倒计时已结束，请接通电源后继续使用"
             : @"设备电量即将耗尽，请立即连接电源";
