@@ -17,7 +17,7 @@ CFLAGS := -arch arm64 -isysroot $(SDK) -miphoneos-version-min=15.0 -O2 -fvisibil
 OBJCFLAGS := $(CFLAGS) -fobjc-arc -fmodules
 LDFLAGS := -arch arm64 -isysroot $(SDK) -miphoneos-version-min=15.0 -Wl,-dead_strip -framework Foundation -framework UIKit -framework CoreGraphics -framework QuartzCore
 
-.PHONY: all package test clean inspect
+.PHONY: all package test clean inspect serve
 
 all: test package
 
@@ -56,3 +56,6 @@ inspect: package
 
 clean:
 	rm -rf $(BUILD)
+
+serve: package
+	@python3 scripts/serve.py
