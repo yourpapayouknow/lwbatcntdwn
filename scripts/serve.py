@@ -7,7 +7,7 @@ import sys
 
 PORT = 8080
 BUILD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "build"))
-TIPA_NAME = "LowBatCountdown-1.0.3.tipa"
+TIPA_NAME = "LowBatCountdown-1.0.4.tipa"
 
 def get_local_ip():
     try:
@@ -121,7 +121,7 @@ def generate_index_html(ip):
     <div class="card">
         <div class="badge">iOS 15.0 - 16.6.1 · TrollStore</div>
         <h1>低电量倒计时</h1>
-        <p class="sub">版本 1.0.3 · 局域网开发版</p>
+        <p class="sub">版本 1.0.4 · 局域网开发版</p>
         
         <a class="btn btn-primary" href="{troll_url}">🚀 唤起 TrollStore 直接安装</a>
         <a class="btn btn-secondary" href="/{TIPA_NAME}">⬇️ 直接下载 .tipa 安装包</a>

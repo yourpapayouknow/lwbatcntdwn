@@ -3,10 +3,11 @@ SHELL := /bin/zsh
 APP := LowBat
 BUILD := build
 APP_DIR := $(BUILD)/Payload/$(APP).app
-TIPA := $(BUILD)/LowBatCountdown-1.0.3.tipa
+TIPA := $(BUILD)/LowBatCountdown-1.0.4.tipa
 SDK := $(shell xcrun --sdk iphoneos --show-sdk-path)
 CC := xcrun --sdk iphoneos clang
 HOST_CC := xcrun --sdk macosx clang
+ICON_SOURCE := Resources/AppIcon-source.png
 ASSET_FILES := $(shell find Resources/Assets.xcassets -type f)
 
 M_SOURCES := Sources/main.m Sources/LBShared.m Sources/LBApp.m Sources/LBHud.m
@@ -17,7 +18,13 @@ CFLAGS := -arch arm64 -isysroot $(SDK) -miphoneos-version-min=15.0 -O2 -fvisibil
 OBJCFLAGS := $(CFLAGS) -fobjc-arc -fmodules
 LDFLAGS := -arch arm64 -isysroot $(SDK) -miphoneos-version-min=15.0 -Wl,-dead_strip -framework Foundation -framework UIKit -framework CoreGraphics -framework QuartzCore -framework AudioToolbox
 
-.PHONY: all package test clean inspect serve
+.PHONY: all package test clean inspect serve icons
+
+icons: $(ICON_SOURCE)
+	python3 scripts/generate_icons.py $(ICON_SOURCE) Resources/Assets.xcassets/AppIcon.appiconset
+
+Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png: $(ICON_SOURCE) scripts/generate_icons.py
+	python3 scripts/generate_icons.py $(ICON_SOURCE) Resources/Assets.xcassets/AppIcon.appiconset
 
 all: test package
 
