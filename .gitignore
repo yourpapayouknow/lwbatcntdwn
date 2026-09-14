@@ -5,3 +5,4 @@
 *.ipa
 *.tipa
 history/
+.codegraph/
