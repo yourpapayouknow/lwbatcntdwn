@@ -35,36 +35,19 @@ static BOOL lb_canshake(void) {
     return YES;
 }
 
-// 播放强震动反馈。
+// 触发系统默认预设震动。
 static void lb_dovibrate(void) {
     if (!lb_canshake()) return;
-
-    void (*playWithVibe)(SystemSoundID, id, NSDictionary *) = (void (*)(SystemSoundID, id, NSDictionary *))dlsym(RTLD_DEFAULT, "AudioServicesPlaySystemSoundWithVibration");
-    if (playWithVibe) {
-        NSDictionary *pattern = @{
-            @"VibePattern": @[@YES, @250, @NO, @100, @YES, @250],
-            @"Intensity": @1.0,
-        };
-        playWithVibe(kSystemSoundID_Vibrate, nil, pattern);
-    } else {
-        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate);
-    }
-
-    if (@available(iOS 10.0, *)) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            UINotificationFeedbackGenerator *gen = [[UINotificationFeedbackGenerator alloc] init];
-            [gen prepare];
-            [gen notificationOccurred:UINotificationFeedbackTypeError];
-        });
-    }
+    AudioServicesPlayAlertSound(kSystemSoundID_Vibrate);
 }
 
-// 播放系统强震动与系统默认通知声音。
+// 播放系统预设提示音与震动联动。
 static void lb_playalert(BOOL shake, BOOL sound) {
-    if (shake) {
+    if (shake && sound) {
+        AudioServicesPlayAlertSound(1007);
+    } else if (shake) {
         lb_dovibrate();
-    }
-    if (sound) {
+    } else if (sound) {
         AudioServicesPlaySystemSound(1007);
     }
 }
