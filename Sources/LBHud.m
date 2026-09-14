@@ -22,7 +22,7 @@
 
 @end
 
-// 检查设备是否支持震动。
+// 检查设备是否支持触觉震动。
 static BOOL lb_canshake(void) {
     if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad) return NO;
     Class hapticClass = objc_getClass("CHHapticEngine");
@@ -35,19 +35,25 @@ static BOOL lb_canshake(void) {
     return YES;
 }
 
-// 触发系统默认预设震动。
-static void lb_dovibrate(void) {
-    if (!lb_canshake()) return;
-    AudioServicesPlayAlertSound(kSystemSoundID_Vibrate);
+// 触发系统默认预设短促强劲触觉反馈（基于 Apple UIImpactFeedbackGenerator rigid 预设）。
+static void lb_dovibrate(UIImpactFeedbackGenerator *generator) {
+    if (!lb_canshake() || !generator) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [generator prepare];
+        if (@available(iOS 13.0, *)) {
+            [generator impactOccurredWithIntensity:1.0];
+        } else {
+            [generator impactOccurred];
+        }
+    });
 }
 
 // 播放系统预设提示音与震动联动。
-static void lb_playalert(BOOL shake, BOOL sound) {
-    if (shake && sound) {
-        AudioServicesPlayAlertSound(1007);
-    } else if (shake) {
-        lb_dovibrate();
-    } else if (sound) {
+static void lb_playalert(UIImpactFeedbackGenerator *generator, BOOL shake, BOOL sound) {
+    if (shake) {
+        lb_dovibrate(generator);
+    }
+    if (sound) {
         AudioServicesPlaySystemSound(1007);
     }
 }
@@ -114,6 +120,7 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 @property(nonatomic, assign) BOOL nightLocked;
 @property(nonatomic, assign) BOOL alerted;
 @property(nonatomic, assign) int holdTicks;
+@property(nonatomic, strong) UIImpactFeedbackGenerator *rigidImpact;
 @end
 
 @implementation LBHudCtl
@@ -201,6 +208,11 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     self.vibrateEnabled = [config[@"vibrate"] boolValue];
     self.soundEnabled = [config[@"sound"] boolValue];
     lb_init(&_state, [config[@"threshold"] intValue], [config[@"duration"] intValue]);
+
+    if (lb_canshake()) {
+        self.rigidImpact = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleRigid];
+        [self.rigidImpact prepare];
+    }
 }
 
 // 开始监听电量、配置和测试事件。
@@ -271,14 +283,14 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     if (_state.mode == LBModeCount || _state.mode == LBModeHold) {
         self.nightLocked = NO;
         if (!self.alerted) {
-            lb_playalert(self.vibrateEnabled, self.soundEnabled);
+            lb_playalert(self.rigidImpact, self.vibrateEnabled, self.soundEnabled);
             self.alerted = YES;
             self.holdTicks = 0;
         } else if (tick && self.vibrateEnabled) {
             if (_state.mode == LBModeCount) {
-                if (_state.remaining % 2 == 0) lb_dovibrate();
+                if (_state.remaining % 2 == 0) lb_dovibrate(self.rigidImpact);
             } else if (_state.mode == LBModeHold) {
-                if (++self.holdTicks % 4 == 0) lb_dovibrate();
+                if (++self.holdTicks % 4 == 0) lb_dovibrate(self.rigidImpact);
             }
         }
     } else {
