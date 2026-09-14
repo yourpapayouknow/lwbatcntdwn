@@ -121,6 +121,7 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 @property(nonatomic, assign) BOOL alerted;
 @property(nonatomic, assign) int holdTicks;
 @property(nonatomic, strong) UIImpactFeedbackGenerator *rigidImpact;
+@property(nonatomic, strong) NSTimer *vibrateTimer;
 @end
 
 @implementation LBHudCtl
@@ -245,6 +246,9 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     }
     self.vibrateEnabled = [config[@"vibrate"] boolValue];
     self.soundEnabled = [config[@"sound"] boolValue];
+    if (!self.vibrateEnabled) {
+        [self stopVibrateTimer];
+    }
     lb_cfg(&_state, [config[@"threshold"] intValue], [config[@"duration"] intValue]);
     [self evalBat:NO];
 }
@@ -286,17 +290,15 @@ static UIImage *lb_mklockimg(CGFloat pt) {
             lb_playalert(self.rigidImpact, self.vibrateEnabled, self.soundEnabled);
             self.alerted = YES;
             self.holdTicks = 0;
-        } else if (tick && self.vibrateEnabled) {
-            if (_state.mode == LBModeCount) {
-                if (_state.remaining % 2 == 0) lb_dovibrate(self.rigidImpact);
-            } else if (_state.mode == LBModeHold) {
-                if (++self.holdTicks % 4 == 0) lb_dovibrate(self.rigidImpact);
-            }
+            [self startVibrateTimer];
+        } else if (self.vibrateEnabled && !self.vibrateTimer) {
+            [self startVibrateTimer];
         }
     } else {
         self.alerted = NO;
         self.holdTicks = 0;
         self.nightLocked = isNight;
+        [self stopVibrateTimer];
     }
 
     [self drawState:percent];
@@ -340,10 +342,30 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     }
 }
 
+// 启动高频震动定时器（每秒触发 4 次：0.25s 间隔）。
+- (void)startVibrateTimer {
+    if (self.vibrateTimer || !self.vibrateEnabled || !lb_canshake()) return;
+    __weak typeof(self) weakSelf = self;
+    self.vibrateTimer = [NSTimer scheduledTimerWithTimeInterval:0.25 repeats:YES block:^(__unused NSTimer *timer) {
+        typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf || !strongSelf.vibrateEnabled) return;
+        lb_dovibrate(strongSelf.rigidImpact);
+    }];
+}
+
+// 停止高频震动定时器。
+- (void)stopVibrateTimer {
+    if (self.vibrateTimer) {
+        [self.vibrateTimer invalidate];
+        self.vibrateTimer = nil;
+    }
+}
+
 // 清理系统通知监听。
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
     [self.timer invalidate];
+    [self stopVibrateTimer];
 }
 
 @end
