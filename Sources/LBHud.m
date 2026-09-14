@@ -58,6 +58,57 @@ static void lb_playalert(UIImpactFeedbackGenerator *generator, BOOL shake, BOOL 
     }
 }
 
+static BOOL lb_lowpoweractive = NO;
+
+// 设置或解除低电量弹窗启用的系统省电模式。
+static void lb_setlowpower(BOOL enable) {
+    if (enable == lb_lowpoweractive) return;
+
+    static Class saverClass = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        dlopen("/System/Library/PrivateFrameworks/CoreDuet.framework/CoreDuet", RTLD_NOW | RTLD_GLOBAL);
+        saverClass = objc_getClass("_CDBatterySaver");
+    });
+    if (!saverClass) return;
+    id saver = nil;
+    SEL batSaverSel = NSSelectorFromString(@"batterySaver");
+    SEL sharedInstSel = NSSelectorFromString(@"sharedInstance");
+    if ([saverClass respondsToSelector:batSaverSel]) {
+        saver = ((id (*)(id, SEL))objc_msgSend)(saverClass, batSaverSel);
+    } else if ([saverClass respondsToSelector:sharedInstSel]) {
+        saver = ((id (*)(id, SEL))objc_msgSend)(saverClass, sharedInstSel);
+    }
+    if (!saver) return;
+
+    long long mode = enable ? 1 : 0;
+    SEL setModeSel = NSSelectorFromString(@"setMode:");
+    SEL setPowerModeSel = NSSelectorFromString(@"setPowerMode:error:");
+    if ([saver respondsToSelector:setModeSel]) {
+        NSMethodSignature *sig = [saver methodSignatureForSelector:setModeSel];
+        if (sig) {
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:saver];
+            [inv setSelector:setModeSel];
+            [inv setArgument:&mode atIndex:2];
+            [inv invoke];
+            lb_lowpoweractive = enable;
+        }
+    } else if ([saver respondsToSelector:setPowerModeSel]) {
+        NSMethodSignature *sig = [saver methodSignatureForSelector:setPowerModeSel];
+        if (sig) {
+            NSError *__autoreleasing err = nil;
+            NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+            [inv setTarget:saver];
+            [inv setSelector:setPowerModeSel];
+            [inv setArgument:&mode atIndex:2];
+            [inv setArgument:&err atIndex:3];
+            [inv invoke];
+            if (!err) lb_lowpoweractive = enable;
+        }
+    }
+}
+
 // 判断当前是否处于夜间锁定保护时段（23:30 - 07:00）。
 static BOOL lb_isnight(void) {
     NSCalendar *calendar = NSCalendar.currentCalendar;
@@ -105,13 +156,11 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 }
 
 @interface LBHudCtl ()
+@property(nonatomic, strong) UIView *iconContainer;
 @property(nonatomic, strong) UIImageView *iconView;
 @property(nonatomic, strong) NSLayoutConstraint *iconHeight;
-@property(nonatomic, strong) UILabel *titleLabel;
-@property(nonatomic, strong) UILabel *batteryLabel;
 @property(nonatomic, strong) UILabel *countLabel;
-@property(nonatomic, strong) UILabel *messageLabel;
-@property(nonatomic, strong) UIProgressView *progressView;
+@property(nonatomic, strong) UILabel *batteryLabel;
 @property(nonatomic, strong) NSTimer *timer;
 @property(nonatomic, assign) LBState state;
 @property(nonatomic, assign) BOOL forcedTest;
@@ -126,16 +175,6 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 
 @implementation LBHudCtl
 
-// 创建警告图标。
-- (UIImageView *)mkIcon {
-    UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:42.0 weight:UIImageSymbolWeightSemibold];
-    UIImage *image = [UIImage systemImageNamed:@"battery.0" withConfiguration:config];
-    UIImageView *view = [[UIImageView alloc] initWithImage:image];
-    view.tintColor = UIColor.systemRedColor;
-    view.contentMode = UIViewContentModeScaleAspectFit;
-    return view;
-}
-
 // 创建倒计时警告界面。
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -149,46 +188,49 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     card.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:card];
 
-    self.iconView = [self mkIcon];
-    self.iconHeight = [self.iconView.heightAnchor constraintEqualToConstant:48.0];
-    self.iconHeight.active = YES;
+    self.iconContainer = [[UIView alloc] init];
+    self.iconContainer.translatesAutoresizingMaskIntoConstraints = NO;
 
-    self.titleLabel = [[UILabel alloc] init];
-    self.titleLabel.text = @"电量过低";
-    self.titleLabel.textColor = UIColor.whiteColor;
-    self.titleLabel.textAlignment = NSTextAlignmentCenter;
-    self.titleLabel.font = [UIFont systemFontOfSize:20.0 weight:UIFontWeightSemibold];
-
-    self.batteryLabel = [[UILabel alloc] init];
-    self.batteryLabel.textColor = UIColor.secondaryLabelColor;
-    self.batteryLabel.textAlignment = NSTextAlignmentCenter;
-    self.batteryLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightRegular];
+    self.iconView = [[UIImageView alloc] init];
+    self.iconView.contentMode = UIViewContentModeScaleAspectFit;
+    self.iconView.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.iconContainer addSubview:self.iconView];
 
     self.countLabel = [[UILabel alloc] init];
     self.countLabel.textColor = UIColor.systemRedColor;
     self.countLabel.textAlignment = NSTextAlignmentCenter;
-    self.countLabel.font = [UIFont monospacedDigitSystemFontOfSize:72.0 weight:UIFontWeightBold];
+    self.countLabel.font = [UIFont monospacedDigitSystemFontOfSize:54.0 weight:UIFontWeightBold];
     self.countLabel.adjustsFontSizeToFitWidth = YES;
-    self.countLabel.minimumScaleFactor = 0.7;
+    self.countLabel.minimumScaleFactor = 0.5;
+    self.countLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.iconContainer addSubview:self.countLabel];
 
-    self.progressView = [[UIProgressView alloc] initWithProgressViewStyle:UIProgressViewStyleDefault];
-    self.progressView.progressTintColor = UIColor.systemRedColor;
-    self.progressView.trackTintColor = [UIColor colorWithWhite:1.0 alpha:0.12];
-    self.progressView.layer.cornerRadius = 3.0;
-    self.progressView.clipsToBounds = YES;
-    [self.progressView.heightAnchor constraintEqualToConstant:6.0].active = YES;
+    self.iconHeight = [self.iconView.heightAnchor constraintEqualToConstant:130.0];
+    self.iconHeight.active = YES;
 
-    self.messageLabel = [[UILabel alloc] init];
-    self.messageLabel.textColor = UIColor.secondaryLabelColor;
-    self.messageLabel.textAlignment = NSTextAlignmentCenter;
-    self.messageLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightRegular];
-    self.messageLabel.numberOfLines = 0;
+    [NSLayoutConstraint activateConstraints:@[
+        [self.iconView.topAnchor constraintEqualToAnchor:self.iconContainer.topAnchor],
+        [self.iconView.bottomAnchor constraintEqualToAnchor:self.iconContainer.bottomAnchor],
+        [self.iconView.centerXAnchor constraintEqualToAnchor:self.iconContainer.centerXAnchor],
+        [self.iconView.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.iconContainer.leadingAnchor],
+        [self.iconView.trailingAnchor constraintLessThanOrEqualToAnchor:self.iconContainer.trailingAnchor],
+
+        [self.countLabel.centerXAnchor constraintEqualToAnchor:self.iconView.centerXAnchor constant:-7.5],
+        [self.countLabel.centerYAnchor constraintEqualToAnchor:self.iconView.centerYAnchor],
+        [self.countLabel.widthAnchor constraintLessThanOrEqualToAnchor:self.iconView.widthAnchor multiplier:0.65],
+        [self.countLabel.heightAnchor constraintLessThanOrEqualToAnchor:self.iconView.heightAnchor multiplier:0.60],
+    ]];
+
+    self.batteryLabel = [[UILabel alloc] init];
+    self.batteryLabel.textColor = UIColor.secondaryLabelColor;
+    self.batteryLabel.textAlignment = NSTextAlignmentCenter;
+    self.batteryLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightMedium];
 
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
-        self.iconView, self.titleLabel, self.batteryLabel, self.countLabel, self.progressView, self.messageLabel,
+        self.iconContainer, self.batteryLabel,
     ]];
     stack.axis = UILayoutConstraintAxisVertical;
-    stack.spacing = 14.0;
+    stack.spacing = 16.0;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     [card.contentView addSubview:stack];
 
@@ -284,7 +326,8 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     if (tick && !charging && _state.mode == LBModeCount) lb_tick(&_state);
 
     BOOL isNight = lb_isnight();
-    if (_state.mode == LBModeCount || _state.mode == LBModeHold) {
+    BOOL isLowBat = (_state.mode == LBModeCount || _state.mode == LBModeHold);
+    if (isLowBat) {
         self.nightLocked = NO;
         if (!self.alerted) {
             lb_playalert(self.rigidImpact, self.vibrateEnabled, self.soundEnabled);
@@ -294,11 +337,13 @@ static UIImage *lb_mklockimg(CGFloat pt) {
         } else if (self.vibrateEnabled && !self.vibrateTimer) {
             [self startVibrateTimer];
         }
+        lb_setlowpower(YES);
     } else {
         self.alerted = NO;
         self.holdTicks = 0;
         self.nightLocked = isNight;
         [self stopVibrateTimer];
+        lb_setlowpower(NO);
     }
 
     [self drawState:percent];
@@ -313,32 +358,16 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     if (self.nightLocked) {
         self.iconHeight.constant = 130.0;
         self.iconView.image = lb_mklockimg(110.0);
-        self.titleLabel.hidden = YES;
-        self.batteryLabel.hidden = NO;
-        self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
-        self.batteryLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightMedium];
         self.countLabel.hidden = YES;
-        self.progressView.hidden = YES;
-        self.messageLabel.hidden = YES;
+        self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
     } else {
-        self.iconHeight.constant = 48.0;
-        UIImageSymbolConfiguration *symCfg = [UIImageSymbolConfiguration configurationWithPointSize:42.0 weight:UIImageSymbolWeightSemibold];
+        self.iconHeight.constant = 130.0;
+        UIImageSymbolConfiguration *symCfg = [UIImageSymbolConfiguration configurationWithPointSize:125.0 weight:UIImageSymbolWeightSemibold];
         self.iconView.image = [UIImage systemImageNamed:@"battery.0" withConfiguration:symCfg];
         self.iconView.tintColor = UIColor.systemRedColor;
-        self.titleLabel.hidden = NO;
-        self.titleLabel.text = @"电量过低";
-        self.batteryLabel.hidden = NO;
-        self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
-        self.batteryLabel.font = [UIFont systemFontOfSize:15.0 weight:UIFontWeightRegular];
         self.countLabel.hidden = NO;
-        self.progressView.hidden = NO;
         self.countLabel.text = [NSString stringWithFormat:@"%d", _state.remaining];
-        float progress = _state.duration > 0 ? (float)_state.remaining / (float)_state.duration : 0.0f;
-        [self.progressView setProgress:progress animated:YES];
-        self.messageLabel.hidden = NO;
-        self.messageLabel.text = _state.mode == LBModeHold
-            ? @"倒计时已结束，请接通电源后继续使用"
-            : @"设备电量即将耗尽，请立即连接电源";
+        self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
     }
 }
 
@@ -366,6 +395,7 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     [NSNotificationCenter.defaultCenter removeObserver:self];
     [self.timer invalidate];
     [self stopVibrateTimer];
+    lb_setlowpower(NO);
 }
 
 @end
@@ -445,6 +475,7 @@ static void lb_monexe(void) {
 
     lb_exesrc = dispatch_source_create(DISPATCH_SOURCE_TYPE_VNODE, handle, DISPATCH_VNODE_DELETE, dispatch_get_main_queue());
     dispatch_source_set_event_handler(lb_exesrc, ^{
+        lb_setlowpower(NO);
         close(handle);
         exit(EXIT_SUCCESS);
     });
@@ -461,10 +492,12 @@ int lb_hudmain(void) {
 
     int stopToken = 0;
     notify_register_dispatch(LB_STOP_NOTE, &stopToken, dispatch_get_main_queue(), ^(__unused int token) {
+        lb_setlowpower(NO);
         exit(EXIT_SUCCESS);
     });
     int springBoardToken = 0;
     notify_register_dispatch("SBSpringBoardDidLaunchNotification", &springBoardToken, dispatch_get_main_queue(), ^(__unused int token) {
+        lb_setlowpower(NO);
         flock(lb_lockfd, LOCK_UN);
         close(lb_lockfd);
         lb_lockfd = -1;
