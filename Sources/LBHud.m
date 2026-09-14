@@ -35,17 +35,34 @@ static BOOL lb_canshake(void) {
     return YES;
 }
 
-// 播放短促强震动与系统默认通知声音。
+// 播放强震动反馈。
+static void lb_dovibrate(void) {
+    if (!lb_canshake()) return;
+
+    void (*playWithVibe)(SystemSoundID, id, NSDictionary *) = (void (*)(SystemSoundID, id, NSDictionary *))dlsym(RTLD_DEFAULT, "AudioServicesPlaySystemSoundWithVibration");
+    if (playWithVibe) {
+        NSDictionary *pattern = @{
+            @"VibePattern": @[@YES, @250, @NO, @100, @YES, @250],
+            @"Intensity": @1.0,
+        };
+        playWithVibe(kSystemSoundID_Vibrate, nil, pattern);
+    } else {
+        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate);
+    }
+
+    if (@available(iOS 10.0, *)) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            UINotificationFeedbackGenerator *gen = [[UINotificationFeedbackGenerator alloc] init];
+            [gen prepare];
+            [gen notificationOccurred:UINotificationFeedbackTypeError];
+        });
+    }
+}
+
+// 播放系统强震动与系统默认通知声音。
 static void lb_playalert(BOOL shake, BOOL sound) {
-    if (shake && lb_canshake()) {
-        AudioServicesPlaySystemSound(1520);
-        if (@available(iOS 13.0, *)) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                UIImpactFeedbackGenerator *generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleHeavy];
-                [generator prepare];
-                [generator impactOccurred];
-            });
-        }
+    if (shake) {
+        lb_dovibrate();
     }
     if (sound) {
         AudioServicesPlaySystemSound(1007);
@@ -113,6 +130,7 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 @property(nonatomic, assign) BOOL soundEnabled;
 @property(nonatomic, assign) BOOL nightLocked;
 @property(nonatomic, assign) BOOL alerted;
+@property(nonatomic, assign) int holdTicks;
 @end
 
 @implementation LBHudCtl
@@ -272,9 +290,17 @@ static UIImage *lb_mklockimg(CGFloat pt) {
         if (!self.alerted) {
             lb_playalert(self.vibrateEnabled, self.soundEnabled);
             self.alerted = YES;
+            self.holdTicks = 0;
+        } else if (tick && self.vibrateEnabled) {
+            if (_state.mode == LBModeCount) {
+                if (_state.remaining % 2 == 0) lb_dovibrate();
+            } else if (_state.mode == LBModeHold) {
+                if (++self.holdTicks % 4 == 0) lb_dovibrate();
+            }
         }
     } else {
         self.alerted = NO;
+        self.holdTicks = 0;
         self.nightLocked = isNight;
     }
 
