@@ -160,7 +160,6 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 @property(nonatomic, strong) NSLayoutConstraint *iconHeight;
 @property(nonatomic, strong) UILabel *countLabel;
 @property(nonatomic, strong) UILabel *batteryLabel;
-@property(nonatomic, strong) UILabel *hintLabel;
 @property(nonatomic, strong) NSTimer *timer;
 @property(nonatomic, assign) LBState state;
 @property(nonatomic, assign) BOOL forcedTest;
@@ -228,14 +227,8 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     self.batteryLabel.textAlignment = NSTextAlignmentCenter;
     self.batteryLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightMedium];
 
-    self.hintLabel = [[UILabel alloc] init];
-    self.hintLabel.textColor = UIColor.secondaryLabelColor;
-    self.hintLabel.textAlignment = NSTextAlignmentCenter;
-    self.hintLabel.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightRegular];
-    self.hintLabel.numberOfLines = 0;
-
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
-        self.iconContainer, self.batteryLabel, self.hintLabel,
+        self.iconContainer, self.batteryLabel,
     ]];
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 16.0;
@@ -404,14 +397,6 @@ static UIImage *lb_mklockimg(CGFloat pt) {
         self.iconView.image = lb_mklockimg(110.0);
         self.countLabel.hidden = YES;
         self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
-        if (self.nightSnoozeCount < 3) {
-            int mins = lb_snzdur(self.nightSnoozeCount) / 60;
-            int left = 3 - self.nightSnoozeCount;
-            self.hintLabel.text = [NSString stringWithFormat:@"长按 5 秒暂缓 %d 分钟（剩余 %d 次）", mins, left];
-        } else {
-            self.hintLabel.text = @"暂缓次数已用尽，早晨 07:00 解除";
-        }
-        self.hintLabel.hidden = NO;
     } else {
         self.iconHeight.constant = 130.0;
         UIImageSymbolConfiguration *symCfg = [UIImageSymbolConfiguration configurationWithPointSize:125.0 weight:UIImageSymbolWeightSemibold];
@@ -420,7 +405,6 @@ static UIImage *lb_mklockimg(CGFloat pt) {
         self.countLabel.hidden = NO;
         self.countLabel.text = [NSString stringWithFormat:@"%d", _state.remaining];
         self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
-        self.hintLabel.hidden = YES;
     }
 }
 
