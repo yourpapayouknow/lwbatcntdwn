@@ -46,3 +46,25 @@ bool lb_tick(LBState *state) {
     return true;
 }
 
+// 获取夜间暂缓时长秒数。
+int lb_snzdur(int count) {
+    if (count == 0) return 30 * 60;
+    if (count == 1) return 10 * 60;
+    if (count == 2) return 5 * 60;
+    return 0;
+}
+
+// 检查给定时间是否属于夜间锁定区间。
+bool lb_chknght(int hour, int minute) {
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return false;
+    int mins = hour * 60 + minute;
+    return (mins >= (23 * 60 + 30)) || (mins < (7 * 60));
+}
+
+// 判定是否应显示夜间锁定弹窗。
+bool lb_shwnght(int hour, int minute, double now, double expire) {
+    if (!lb_chknght(hour, minute)) return false;
+    if (expire > 0.0 && now < expire) return false;
+    return true;
+}
+

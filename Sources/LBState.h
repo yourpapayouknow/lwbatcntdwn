@@ -28,5 +28,14 @@ bool lb_feed(LBState *state, int percent, bool charging);
 // 推进一秒倒计时。
 bool lb_tick(LBState *state);
 
+// 获取夜间暂缓时长秒数。
+int lb_snzdur(int count);
+
+// 检查给定时间是否属于夜间锁定区间。
+bool lb_chknght(int hour, int minute);
+
+// 判定是否应显示夜间锁定弹窗。
+bool lb_shwnght(int hour, int minute, double now, double expire);
+
 #endif
 

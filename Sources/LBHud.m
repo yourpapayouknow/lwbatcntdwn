@@ -109,12 +109,11 @@ static void lb_setlowpower(BOOL enable) {
     }
 }
 
-// 判断当前是否处于夜间锁定保护时段（23:30 - 07:00）。
+// 判断当前是否处于夜间锁定保护时段。
 static BOOL lb_isnight(void) {
     NSCalendar *calendar = NSCalendar.currentCalendar;
     NSDateComponents *comps = [calendar components:(NSCalendarUnitHour | NSCalendarUnitMinute) fromDate:[NSDate date]];
-    NSInteger mins = comps.hour * 60 + comps.minute;
-    return (mins >= (23 * 60 + 30)) || (mins < (7 * 60));
+    return lb_chknght((int)comps.hour, (int)comps.minute);
 }
 
 // 生成带月亮睡眠镂空的大锁图标。
@@ -161,12 +160,15 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 @property(nonatomic, strong) NSLayoutConstraint *iconHeight;
 @property(nonatomic, strong) UILabel *countLabel;
 @property(nonatomic, strong) UILabel *batteryLabel;
+@property(nonatomic, strong) UILabel *hintLabel;
 @property(nonatomic, strong) NSTimer *timer;
 @property(nonatomic, assign) LBState state;
 @property(nonatomic, assign) BOOL forcedTest;
 @property(nonatomic, assign) BOOL vibrateEnabled;
 @property(nonatomic, assign) BOOL soundEnabled;
 @property(nonatomic, assign) BOOL nightLocked;
+@property(nonatomic, assign) int nightSnoozeCount;
+@property(nonatomic, assign) NSTimeInterval nightSnoozeExpire;
 @property(nonatomic, assign) BOOL alerted;
 @property(nonatomic, assign) int holdTicks;
 @property(nonatomic, strong) UIImpactFeedbackGenerator *rigidImpact;
@@ -226,8 +228,14 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     self.batteryLabel.textAlignment = NSTextAlignmentCenter;
     self.batteryLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightMedium];
 
+    self.hintLabel = [[UILabel alloc] init];
+    self.hintLabel.textColor = UIColor.secondaryLabelColor;
+    self.hintLabel.textAlignment = NSTextAlignmentCenter;
+    self.hintLabel.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightRegular];
+    self.hintLabel.numberOfLines = 0;
+
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
-        self.iconContainer, self.batteryLabel,
+        self.iconContainer, self.batteryLabel, self.hintLabel,
     ]];
     stack.axis = UILayoutConstraintAxisVertical;
     stack.spacing = 16.0;
@@ -247,6 +255,11 @@ static UIImage *lb_mklockimg(CGFloat pt) {
         [stack.bottomAnchor constraintEqualToAnchor:card.contentView.bottomAnchor constant:-24.0],
     ]];
 
+    UILongPressGestureRecognizer *press = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(lngprs:)];
+    press.minimumPressDuration = 5.0;
+    press.allowableMovement = 30.0;
+    [self.view addGestureRecognizer:press];
+
     NSDictionary *config = lb_ldcfg();
     self.vibrateEnabled = [config[@"vibrate"] boolValue];
     self.soundEnabled = [config[@"sound"] boolValue];
@@ -258,12 +271,26 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     }
 }
 
+// 处理长按解除夜间弹窗手势。
+- (void)lngprs:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateBegan) return;
+    if (!lb_isnight() || !self.nightLocked || _state.mode != LBModeHidden) return;
+    int duration = lb_snzdur(self.nightSnoozeCount);
+    if (duration <= 0) return;
+
+    self.nightSnoozeCount++;
+    self.nightSnoozeExpire = [NSDate date].timeIntervalSinceReferenceDate + (NSTimeInterval)duration;
+    lb_dovibrate(self.rigidImpact);
+    [self evalBat:NO];
+}
+
 // 开始监听电量、配置和测试事件。
 - (void)startMon {
     UIDevice.currentDevice.batteryMonitoringEnabled = YES;
     NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
     [center addObserver:self selector:@selector(batChanged:) name:UIDeviceBatteryLevelDidChangeNotification object:nil];
     [center addObserver:self selector:@selector(batChanged:) name:UIDeviceBatteryStateDidChangeNotification object:nil];
+    [center addObserver:self selector:@selector(tmchg:) name:UIApplicationSignificantTimeChangeNotification object:nil];
 
     __weak typeof(self) weakSelf = self;
     int configToken = 0;
@@ -276,6 +303,13 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     });
 
     self.timer = [NSTimer scheduledTimerWithTimeInterval:1.0 target:self selector:@selector(onTick:) userInfo:nil repeats:YES];
+    [NSRunLoop.currentRunLoop addTimer:self.timer forMode:NSRunLoopCommonModes];
+    [self evalBat:NO];
+}
+
+// 处理系统时间跳变通知。
+- (void)tmchg:(NSNotification *)note {
+    (void)note;
     [self evalBat:NO];
 }
 
@@ -325,7 +359,9 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     lb_feed(&_state, self.forcedTest ? 0 : percent, charging);
     if (tick && !charging && _state.mode == LBModeCount) lb_tick(&_state);
 
-    BOOL isNight = lb_isnight();
+    NSCalendar *calendar = NSCalendar.currentCalendar;
+    NSDateComponents *comps = [calendar components:(NSCalendarUnitHour | NSCalendarUnitMinute) fromDate:[NSDate date]];
+    BOOL isNight = lb_chknght((int)comps.hour, (int)comps.minute);
     BOOL isLowBat = (_state.mode == LBModeCount || _state.mode == LBModeHold);
     if (isLowBat) {
         self.nightLocked = NO;
@@ -341,9 +377,17 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     } else {
         self.alerted = NO;
         self.holdTicks = 0;
-        self.nightLocked = isNight;
         [self stopVibrateTimer];
         lb_setlowpower(NO);
+
+        if (!isNight) {
+            self.nightLocked = NO;
+            self.nightSnoozeCount = 0;
+            self.nightSnoozeExpire = 0;
+        } else {
+            NSTimeInterval now = [NSDate date].timeIntervalSinceReferenceDate;
+            self.nightLocked = lb_shwnght((int)comps.hour, (int)comps.minute, now, self.nightSnoozeExpire);
+        }
     }
 
     [self drawState:percent];
@@ -360,6 +404,14 @@ static UIImage *lb_mklockimg(CGFloat pt) {
         self.iconView.image = lb_mklockimg(110.0);
         self.countLabel.hidden = YES;
         self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
+        if (self.nightSnoozeCount < 3) {
+            int mins = lb_snzdur(self.nightSnoozeCount) / 60;
+            int left = 3 - self.nightSnoozeCount;
+            self.hintLabel.text = [NSString stringWithFormat:@"长按 5 秒暂缓 %d 分钟（剩余 %d 次）", mins, left];
+        } else {
+            self.hintLabel.text = @"暂缓次数已用尽，早晨 07:00 解除";
+        }
+        self.hintLabel.hidden = NO;
     } else {
         self.iconHeight.constant = 130.0;
         UIImageSymbolConfiguration *symCfg = [UIImageSymbolConfiguration configurationWithPointSize:125.0 weight:UIImageSymbolWeightSemibold];
@@ -368,6 +420,7 @@ static UIImage *lb_mklockimg(CGFloat pt) {
         self.countLabel.hidden = NO;
         self.countLabel.text = [NSString stringWithFormat:@"%d", _state.remaining];
         self.batteryLabel.text = percent >= 0 ? [NSString stringWithFormat:@"当前电量 %d%%", percent] : @"当前电量未知";
+        self.hintLabel.hidden = YES;
     }
 }
 
