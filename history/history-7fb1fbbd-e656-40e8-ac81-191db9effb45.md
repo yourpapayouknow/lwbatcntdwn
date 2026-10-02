@@ -157,3 +157,19 @@
 - **Where（在哪个上下文）**：`/Users/mac/codexproj/lwbatcntdwn`，涉及 `Resources/Info.plist`、`Makefile`。
 - **Why（目的/背景）**：用户在安装最新包后反馈“我图标呢”，桌面未显示定制应用图标。
 - **How（如何实现/决策过程）**：严格按照 TrollStore 官方规范与参考项目 `TrollSpeed` 的图标打包模式，双重保障静态 `Info.plist` 声明与包根目录散装 PNG，杜绝动态生成失效风险。
+
+---
+
+### 第 13 轮对话（2026-10-02 17:21）
+
+- **Who（谁参与）**：用户 + AI（Antigravity Agent）。
+- **What（做了什么）**：按照用户明确指令，更新 GitHub Release `v1.0.8` 的 Release 说明内容：
+  - 更新后的说明为：
+    ```
+    修复了一些已知问题。
+    弹窗出现后长按5s屏幕有惊喜～
+    ```
+- **When（何时发生）**：2026-10-02 17:21。
+- **Where（在哪个上下文）**：GitHub 仓库 `yourpapayouknow/lwbatcntdwn`，标签 `v1.0.8`。
+- **Why（目的/背景）**：用户要求在当前 Release 说明中加入“弹窗出现后长按5s屏幕有惊喜～”，为夜间长按暂缓功能提供彩蛋式指引。
+- **How（如何实现/决策过程）**：调用 `gh release edit v1.0.8 --notes "..."` 完成线上更新，并通过 `gh release view` 验证更新结果。
