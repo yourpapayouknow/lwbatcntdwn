@@ -124,3 +124,18 @@
 - **Why（目的/背景）**：用户已确认并批准采用 `IOHIDEventSystemClient` / `BKSHIDEventRegisterEventCallback` 方案绕过 SpringBoard 触摸阻断，实现夜间弹窗 5 秒长按暂缓。
 - **How（如何实现/决策过程）**：从 TrollVNC/IOKitSPI.h、TrollSpeed/BackboardServices.h 等已知引用仓库中提取正确的 API 声明与字段常量（kIOHIDEventTypeDigitizer=11，kIOHIDEventFieldDigitizerTouch=720905，kIOHIDEventFieldDigitizerEventMask=720903），采用 `BKSHIDEventRegisterEventCallback` 优先策略（已证明可行），并以 IOHIDEventSystemClient 作为后备，完全通过 dlopen+dlsym 动态加载避免链接问题。边界条件下额外取消悬挂 snzTimer，确保 07:00 解锁时不会误触发暂缓。
 
+
+---
+
+### 第 11 轮对话（2026-10-02 16:50）
+
+- **Who（谁参与）**：用户 + AI（Antigravity Agent）。
+- **What（做了什么）**：针对用户提出的“原理层面确认、闭环无死胡同”的最高可靠性要求，展开深度逻辑复查，发现并闭环修复了 4 项核心时序与状态判定缺陷：
+  1. **注册时序对齐**：原注册放在 `startMon` 中，此时 `__completeAndRunAsPlugin` 已经执行完毕并进入插件模式；现严格按照 TrollSpeed 原文时序，将 `BKSHIDEventRegisterEventCallback` 移至 `lb_hudmain` 中并在 `__completeAndRunAsPlugin` 之前完成注册，同时补全 iOS 15+ 必需的 `GSEventInitialize(0)` 与 `GSEventPushRunLoopMode(kCFRunLoopDefaultMode)`，确保 BackBoard 事件能被正确推入主运行循环。
+  2. **事件过滤门禁**：修复 IOHID fallback 中未判断 `eventMask` 导致 Range/悬停事件被误判为 Lift 从而意外中断 5 秒长按计时器的问题；明确加入 `(mask & (1 << 1))` 门禁（仅当包含 Touch 位时才判定 Down/Up）。
+  3. **预加载前置**：在回调注册前显式调用 `lb_ldax()` 预加载 `AXEventRepresentation` 类，防止首次硬件事件到达时因懒加载竞态造成丢包。
+  4. **全链路构建与发布**：全量编译通过无告警，单元测试通过，提交并推送 Git，更新 GitHub release `v1.0.8` 的 `.tipa` 资产。
+- **When（何时发生）**：2026-10-02 16:50。
+- **Where（在哪个上下文）**：`/Users/mac/codexproj/lwbatcntdwn`，涉及 `Sources/LBHud.m`。
+- **Why（目的/背景）**：用户指出测试机会极为宝贵（每天 23:30 仅一次），必须从底层逻辑原理保证彻底闭环，绝不允许存在半吊子或时序错位的死胡同。
+- **How（如何实现/决策过程）**：逐行对齐开源项目 `TrollSpeed/sources/HUDApp.mm` 的底层架构实现，确认 `BKSHIDEventRegisterEventCallback` 在无窗口交互的后台无界面插件模式下的前置条件，彻底排除伪回退与悬挂回调，实现代码逻辑与硬件/系统事件流的严谨闭环。
