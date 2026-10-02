@@ -227,12 +227,16 @@ static void lb_onhidevt(void *target, void *refcon, void *service, void *event) 
         if (s_pGetType && s_pGetInt) {
             uint32_t type = s_pGetType(event);
             if (type == 11) {
-                CFIndex touch = s_pGetInt(event, 720905);
+                // kIOHIDEventFieldDigitizerEventMask = 720903
+                // kIOHIDDigitizerEventTouch = 1<<1 = 2
+                // Only process events where the Touch bit is set in the eventMask.
+                // Range/hover events also have type==11 but lack this bit — ignore them.
                 CFIndex mask = s_pGetInt(event, 720903);
-                if (touch != 0 || (mask & (1 << 1))) {
-                    isDown = YES;
-                } else {
-                    isUp = YES;
+                if (mask & (1 << 1)) {
+                    // kIOHIDEventFieldDigitizerTouch = 720905: nonzero = finger down
+                    CFIndex touch = s_pGetInt(event, 720905);
+                    isDown = (touch != 0);
+                    isUp   = (touch == 0);
                 }
             }
         }
@@ -249,31 +253,8 @@ static void lb_onhidevt(void *target, void *refcon, void *service, void *event) 
     }
 }
 
-// 注册系统输入流监听。
-static void lb_inithid(void) {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        lb_ldax();
-        dlopen("/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW);
-        dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW);
 
-        void *(*pBKSHID)(void (*)(void *, void *, void *, void *)) = (void *(*)(void (*)(void *, void *, void *, void *)))dlsym(RTLD_DEFAULT, "BKSHIDEventRegisterEventCallback");
-        if (pBKSHID) {
-            pBKSHID(lb_onhidevt);
-        } else {
-            void *(*pCreate)(CFAllocatorRef) = (void *(*)(CFAllocatorRef))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
-            void (*pReg)(void *, void (*)(void *, void *, void *, void *), void *, void *) = (void (*)(void *, void (*)(void *, void *, void *, void *), void *, void *))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientRegisterEventCallback");
-            void (*pSched)(void *, CFRunLoopRef, CFStringRef) = (void (*)(void *, CFRunLoopRef, CFStringRef))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientScheduleWithRunLoop");
-            if (pCreate && pReg && pSched) {
-                void *client = pCreate(kCFAllocatorDefault);
-                if (client) {
-                    pSched(client, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
-                    pReg(client, lb_onhidevt, NULL, NULL);
-                }
-            }
-        }
-    });
-}
+
 
 @implementation LBHudCtl
 
@@ -397,7 +378,6 @@ static void lb_inithid(void) {
 
 // 开始监听电量、配置和测试事件。
 - (void)startMon {
-    lb_inithid();
     UIDevice.currentDevice.batteryMonitoringEnabled = YES;
     NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
     [center addObserver:self selector:@selector(batChanged:) name:UIDeviceBatteryLevelDidChangeNotification object:nil];
@@ -691,6 +671,24 @@ int lb_hudmain(void) {
     UIApplication *app = UIApplication.sharedApplication;
     app.delegate = delegate;
     [app _accessibilityInit];
+
+    // 预加载无障碍事件解析类（必须在回调注册前就绪）。
+    lb_ldax();
+
+    // 注册全局 HID 触摸回调——必须在 __completeAndRunAsPlugin 之前，
+    // 与 TrollSpeed/HUDApp.mm 保持完全一致的初始化顺序。
+    void (*pBKSHID)(void (*)(void *, void *, void *, void *)) =
+        (void (*)(void (*)(void *, void *, void *, void *)))dlsym(RTLD_DEFAULT, "BKSHIDEventRegisterEventCallback");
+    if (pBKSHID) pBKSHID(lb_onhidevt);
+
+    // iOS 15+ 需要额外初始化 GSEvent RunLoop 模式才能正常路由 BKS 事件。
+    void (*gsEvtInit)(int) = (void (*)(int))dlsym(RTLD_DEFAULT, "GSEventInitialize");
+    void (*gsEvtPush)(CFStringRef) = (void (*)(CFStringRef))dlsym(RTLD_DEFAULT, "GSEventPushRunLoopMode");
+    if (gsEvtInit && gsEvtPush) {
+        gsEvtInit(0);
+        gsEvtPush(kCFRunLoopDefaultMode);
+    }
+
     [app __completeAndRunAsPlugin];
     CFRunLoopRun();
     return EXIT_SUCCESS;
