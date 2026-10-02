@@ -172,13 +172,115 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 @property(nonatomic, assign) int holdTicks;
 @property(nonatomic, strong) UIImpactFeedbackGenerator *rigidImpact;
 @property(nonatomic, strong) NSTimer *vibrateTimer;
+@property(nonatomic, strong) NSTimer *snzTimer;
+@property(nonatomic, assign) BOOL tchTrig;
+- (void)onTchDn;
+- (void)onTchUp;
 @end
+
+static __weak LBHudCtl *s_lbhudctl = nil;
+static Class s_lbaxcls = nil;
+
+// 动态加载无障碍底层事件解析类。
+static void lb_ldax(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        dlopen("/System/Library/PrivateFrameworks/AccessibilityUtilities.framework/AccessibilityUtilities", RTLD_NOW);
+        s_lbaxcls = objc_getClass("AXEventRepresentation");
+    });
+}
+
+// 接收底层硬件触摸事件回调。
+static void lb_onhidevt(void *target, void *refcon, void *service, void *event) {
+    (void)target;
+    (void)refcon;
+    (void)service;
+    LBHudCtl *ctl = s_lbhudctl;
+    if (!ctl || !ctl.nightLocked) return;
+
+    BOOL isDown = NO;
+    BOOL isUp = NO;
+
+    if (s_lbaxcls) {
+        AXEventRepresentation *rep = [s_lbaxcls representationWithHIDEvent:event hidStreamIdentifier:@"UIApplicationEvents"];
+        if (rep) {
+            if ([rep respondsToSelector:@selector(isTouchDown)] && [rep isTouchDown]) {
+                isDown = YES;
+            } else if ([rep respondsToSelector:@selector(isLift)] && [rep isLift]) {
+                isUp = YES;
+            } else if ([rep respondsToSelector:@selector(isCancel)] && [rep isCancel]) {
+                isUp = YES;
+            } else if ([rep respondsToSelector:@selector(isInRangeLift)] && [rep isInRangeLift]) {
+                isUp = YES;
+            }
+        }
+    }
+
+    if (!isDown && !isUp) {
+        static uint32_t (*s_pGetType)(void *) = NULL;
+        static CFIndex (*s_pGetInt)(void *, uint32_t) = NULL;
+        static dispatch_once_t hidToken;
+        dispatch_once(&hidToken, ^{
+            s_pGetType = (uint32_t (*)(void *))dlsym(RTLD_DEFAULT, "IOHIDEventGetType");
+            s_pGetInt = (CFIndex (*)(void *, uint32_t))dlsym(RTLD_DEFAULT, "IOHIDEventGetIntegerValue");
+        });
+        if (s_pGetType && s_pGetInt) {
+            uint32_t type = s_pGetType(event);
+            if (type == 11) {
+                CFIndex touch = s_pGetInt(event, 720905);
+                CFIndex mask = s_pGetInt(event, 720903);
+                if (touch != 0 || (mask & (1 << 1))) {
+                    isDown = YES;
+                } else {
+                    isUp = YES;
+                }
+            }
+        }
+    }
+
+    if (isDown) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [s_lbhudctl onTchDn];
+        });
+    } else if (isUp) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [s_lbhudctl onTchUp];
+        });
+    }
+}
+
+// 注册系统输入流监听。
+static void lb_inithid(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        lb_ldax();
+        dlopen("/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW);
+        dlopen("/System/Library/Frameworks/IOKit.framework/IOKit", RTLD_NOW);
+
+        void *(*pBKSHID)(void (*)(void *, void *, void *, void *)) = (void *(*)(void (*)(void *, void *, void *, void *)))dlsym(RTLD_DEFAULT, "BKSHIDEventRegisterEventCallback");
+        if (pBKSHID) {
+            pBKSHID(lb_onhidevt);
+        } else {
+            void *(*pCreate)(CFAllocatorRef) = (void *(*)(CFAllocatorRef))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
+            void (*pReg)(void *, void (*)(void *, void *, void *, void *), void *, void *) = (void (*)(void *, void (*)(void *, void *, void *, void *), void *, void *))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientRegisterEventCallback");
+            void (*pSched)(void *, CFRunLoopRef, CFStringRef) = (void (*)(void *, CFRunLoopRef, CFStringRef))dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientScheduleWithRunLoop");
+            if (pCreate && pReg && pSched) {
+                void *client = pCreate(kCFAllocatorDefault);
+                if (client) {
+                    pSched(client, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
+                    pReg(client, lb_onhidevt, NULL, NULL);
+                }
+            }
+        }
+    });
+}
 
 @implementation LBHudCtl
 
 // 创建倒计时警告界面。
 - (void)viewDidLoad {
     [super viewDidLoad];
+    s_lbhudctl = self;
     self.view.backgroundColor = [UIColor colorWithWhite:0.02 alpha:0.88];
 
     UIVisualEffectView *card = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemChromeMaterialDark]];
@@ -248,11 +350,6 @@ static UIImage *lb_mklockimg(CGFloat pt) {
         [stack.bottomAnchor constraintEqualToAnchor:card.contentView.bottomAnchor constant:-24.0],
     ]];
 
-    UILongPressGestureRecognizer *press = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(lngprs:)];
-    press.minimumPressDuration = 5.0;
-    press.allowableMovement = 30.0;
-    [self.view addGestureRecognizer:press];
-
     NSDictionary *config = lb_ldcfg();
     self.vibrateEnabled = [config[@"vibrate"] boolValue];
     self.soundEnabled = [config[@"sound"] boolValue];
@@ -264,13 +361,34 @@ static UIImage *lb_mklockimg(CGFloat pt) {
     }
 }
 
-// 处理长按解除夜间弹窗手势。
-- (void)lngprs:(UILongPressGestureRecognizer *)gesture {
-    if (gesture.state != UIGestureRecognizerStateBegan) return;
+// 响应屏幕按下事件。
+- (void)onTchDn {
+    if (!self.nightLocked || _state.mode != LBModeHidden || self.tchTrig || self.snzTimer) return;
+    __weak typeof(self) weakSelf = self;
+    self.snzTimer = [NSTimer scheduledTimerWithTimeInterval:5.0 repeats:NO block:^(__unused NSTimer *timer) {
+        typeof(weakSelf) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.snzTimer = nil;
+        [strongSelf doSnz];
+    }];
+}
+
+// 响应屏幕抬起或取消事件。
+- (void)onTchUp {
+    self.tchTrig = NO;
+    if (self.snzTimer) {
+        [self.snzTimer invalidate];
+        self.snzTimer = nil;
+    }
+}
+
+// 执行夜间暂缓逻辑。
+- (void)doSnz {
     if (!lb_isnight() || !self.nightLocked || _state.mode != LBModeHidden) return;
     int duration = lb_snzdur(self.nightSnoozeCount);
     if (duration <= 0) return;
 
+    self.tchTrig = YES;
     self.nightSnoozeCount++;
     self.nightSnoozeExpire = [NSDate date].timeIntervalSinceReferenceDate + (NSTimeInterval)duration;
     lb_dovibrate(self.rigidImpact);
@@ -279,6 +397,7 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 
 // 开始监听电量、配置和测试事件。
 - (void)startMon {
+    lb_inithid();
     UIDevice.currentDevice.batteryMonitoringEnabled = YES;
     NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
     [center addObserver:self selector:@selector(batChanged:) name:UIDeviceBatteryLevelDidChangeNotification object:nil];
@@ -431,8 +550,13 @@ static UIImage *lb_mklockimg(CGFloat pt) {
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
     [self.timer invalidate];
+    if (self.snzTimer) {
+        [self.snzTimer invalidate];
+        self.snzTimer = nil;
+    }
     [self stopVibrateTimer];
     lb_setlowpower(NO);
+    if (s_lbhudctl == self) s_lbhudctl = nil;
 }
 
 @end

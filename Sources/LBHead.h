@@ -71,6 +71,14 @@ extern char **environ;
 - (void)startMon;
 @end
 
+@interface AXEventRepresentation : NSObject
+- (BOOL)isTouchDown;
+- (BOOL)isLift;
+- (BOOL)isCancel;
+- (BOOL)isInRangeLift;
++ (instancetype)representationWithHIDEvent:(void *)event hidStreamIdentifier:(NSString *)identifier;
+@end
+
 // 读取共享配置文件。
 NSDictionary *lb_ldcfg(void);
 
