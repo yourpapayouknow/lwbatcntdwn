@@ -496,9 +496,16 @@ static void lb_inithid(void) {
             self.nightLocked = NO;
             self.nightSnoozeCount = 0;
             self.nightSnoozeExpire = 0;
+            if (self.snzTimer) { [self.snzTimer invalidate]; self.snzTimer = nil; }
+            self.tchTrig = NO;
         } else {
             NSTimeInterval now = [NSDate date].timeIntervalSinceReferenceDate;
-            self.nightLocked = lb_shwnght((int)comps.hour, (int)comps.minute, now, self.nightSnoozeExpire);
+            BOOL locked = lb_shwnght((int)comps.hour, (int)comps.minute, now, self.nightSnoozeExpire);
+            if (!locked && self.nightLocked) {
+                if (self.snzTimer) { [self.snzTimer invalidate]; self.snzTimer = nil; }
+                self.tchTrig = NO;
+            }
+            self.nightLocked = locked;
         }
     }
 
