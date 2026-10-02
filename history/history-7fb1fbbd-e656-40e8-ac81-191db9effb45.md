@@ -139,3 +139,21 @@
 - **Where（在哪个上下文）**：`/Users/mac/codexproj/lwbatcntdwn`，涉及 `Sources/LBHud.m`。
 - **Why（目的/背景）**：用户指出测试机会极为宝贵（每天 23:30 仅一次），必须从底层逻辑原理保证彻底闭环，绝不允许存在半吊子或时序错位的死胡同。
 - **How（如何实现/决策过程）**：逐行对齐开源项目 `TrollSpeed/sources/HUDApp.mm` 的底层架构实现，确认 `BKSHIDEventRegisterEventCallback` 在无窗口交互的后台无界面插件模式下的前置条件，彻底排除伪回退与悬挂回调，实现代码逻辑与硬件/系统事件流的严谨闭环。
+
+---
+
+### 第 12 轮对话（2026-10-02 17:08）
+
+- **Who（谁参与）**：用户 + AI（Antigravity Agent）。
+- **What（做了什么）**：排查并解决安装后应用在桌面/TrollStore中未显示图标（显示默认白板/占位网格）的问题：
+  1. **根因定位**：此前构建依赖 `actool` 编译生成 `asset-info.plist` 后通过 `PlistBuddy Merge` 动态合并入包内的 `Info.plist`，但动态合并环节存在跳过或未将独立 `CFBundleIconFile` 以及非 `Assets.car` 依赖的散装 PNG 图标完整植入包内，导致 TrollStore 和 iOS 桌面主屏幕在安装与解析图标缓存时无法获取图标。
+  2. **全面修复方案**：
+     - 在 `Resources/Info.plist` 中显式静态写入完整的 `CFBundleIconFile`、`CFBundleIconName`、`CFBundleIcons` 以及 `CFBundleIcons~ipad` 配置；
+     - 在 `Makefile` 打包目标中，将不同尺寸的独立图标（`AppIcon60x60@2x.png`、`AppIcon60x60@3x.png`、`AppIcon76x76@2x~ipad.png` 及 `icon.png`）作为散装图片直接拷入 App 包根目录，兼顾 TrollStore 直接读取与系统 `Assets.car` 索引；
+  3. **验证与发布**：
+     - 执行 `make inspect`，确认 `Info.plist` 包含正确 `CFBundleIcons` 节点，包内存在 `icon.png`、`Assets.car` 及各分辨率图标；
+     - 提交 Git 并推送到远程 `master` 分支，更新 GitHub Release `v1.0.8` 的 `.tipa` 文件。
+- **When（何时发生）**：2026-10-02 17:08。
+- **Where（在哪个上下文）**：`/Users/mac/codexproj/lwbatcntdwn`，涉及 `Resources/Info.plist`、`Makefile`。
+- **Why（目的/背景）**：用户在安装最新包后反馈“我图标呢”，桌面未显示定制应用图标。
+- **How（如何实现/决策过程）**：严格按照 TrollStore 官方规范与参考项目 `TrollSpeed` 的图标打包模式，双重保障静态 `Info.plist` 声明与包根目录散装 PNG，杜绝动态生成失效风险。
